@@ -1,0 +1,46 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Josefin+Sans:wght@100;300;400&display=swap');
+
+@theme {
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-body: "Josefin Sans", system-ui, sans-serif;
+
+  --color-background: #071020;
+  --color-ocean:      #0a1828;
+  --color-teal:       #1e6b8a;
+  --color-gold:       #c9a96e;
+  --color-gold-light: #dfc08f;
+  --color-foam:       #a8d4e0;
+  --color-pearl:      #e8f4f8;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: #071020; font-family: var(--font-body); }
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1);    opacity: 0.9; }
+  50%       { transform: scale(1.06); opacity: 1;   }
+}
+@keyframes fade-down {
+  from { opacity: 0; transform: translateY(-16px); }
+  to   { opacity: 1; transform: translateY(0);     }
+}
+@keyframes wave {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes wave-slow {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes float {
+  0%   { transform: translateY(100vh); opacity: 0; }
+  10%  { opacity: 0.4; }
+  90%  { opacity: 0.15; }
+  100% { transform: translateY(-20px) translateX(20px); opacity: 0; }
+}
+
+.animate-breathe   { animation: breathe 4s ease-in-out infinite; }
+.animate-fade-down { animation: fade-down 1s ease both; }
+.animate-wave      { animation: wave 18s linear infinite; }
+.animate-wave-slow { animation: wave-slow 28s linear infinite; }
