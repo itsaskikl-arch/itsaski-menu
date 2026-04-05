@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
-interface Category { id: string; name: string; description?: string; display_order: number }
-interface Item { id: string; category_id: string; name: string; description?: string; price?: number; featured: boolean }
+interface Category { id: string; name_es: string; display_order: number }
+interface Dish { id: string; category_id: string; name_es: string; description_es?: string; price?: number; is_chef_pick: boolean; display_order: number }
 
-const WhaleTail = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+const WhaleTail = ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+  <svg className={className} style={style} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stopColor="#1e6b8a" />
@@ -34,7 +34,7 @@ function Price({ value }: { value?: number }) {
   return <span style={{ fontFamily: 'var(--font-display)', color: '#c9a96e', fontSize: '1.1rem', fontWeight: 300, letterSpacing: '0.05em' }}>{str}</span>
 }
 
-function MenuCard({ name, desc, price, featured }: { name: string; desc?: string; price?: number; featured?: boolean }) {
+function DishCard({ name, desc, price, featured }: { name: string; desc?: string; price?: number; featured?: boolean }) {
   if (featured) {
     return (
       <div style={{
@@ -73,7 +73,7 @@ const ICONS = ['◈', '◇', '◆', '◉', '◎']
 export default function MenuPage() {
   const particlesRef = useRef<HTMLDivElement>(null)
   const [categories, setCategories] = useState<Category[]>([])
-  const [items, setItems] = useState<Item[]>([])
+  const [dishes, setDishes] = useState<Dish[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -92,11 +92,11 @@ export default function MenuPage() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('menu_categories').select('id,name,description,display_order').order('display_order'),
-      supabase.from('menu_items').select('id,category_id,name,description,price,featured,display_order').order('display_order'),
-    ]).then(([{ data: cats }, { data: its }]) => {
+      supabase.from('categories').select('id,name_es,display_order').eq('is_active', true).order('display_order'),
+      supabase.from('dishes').select('id,category_id,name_es,description_es,price,is_chef_pick,display_order').eq('is_available', true).order('display_order'),
+    ]).then(([{ data: cats }, { data: ds }]) => {
       setCategories((cats || []) as Category[])
-      setItems((its || []).map((i: any) => ({ ...i, price: i.price != null ? Number(i.price) : undefined })))
+      setDishes((ds || []).map((d: any) => ({ ...d, price: d.price != null ? Number(d.price) : undefined })))
       setLoading(false)
     })
   }, [])
@@ -105,7 +105,6 @@ export default function MenuPage() {
     <div style={{ position: 'relative', minHeight: '100vh', background: '#071020', overflow: 'hidden', fontFamily: 'var(--font-body)' }}>
       <div ref={particlesRef} style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }} />
 
-      {/* waves */}
       <svg className="animate-wave" style={{ position: 'fixed', bottom: 0, left: 0, width: '200%', height: '9rem', zIndex: 0, opacity: 0.07 }} viewBox="0 0 1440 180" preserveAspectRatio="none">
         <path d="M0,80 C180,140 360,20 540,80 C720,140 900,20 1080,80 C1260,140 1440,20 1440,80 L1440,180 L0,180 Z" fill="#a8d4e0" />
       </svg>
@@ -115,14 +114,13 @@ export default function MenuPage() {
 
       <div style={{ position: 'relative', zIndex: 10, maxWidth: '640px', margin: '0 auto', padding: '4rem 2rem 7rem' }}>
 
-        {/* Header */}
         <header className="animate-fade-down" style={{ textAlign: 'center', marginBottom: '5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-            <WhaleTail className="animate-breathe" style={{ width: '6rem', height: '6rem' } as any} />
+            <WhaleTail className="animate-breathe" style={{ width: '6rem', height: '6rem' }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.25rem', marginBottom: '0.5rem' }}>
             <div style={{ height: '1px', width: '3.5rem', background: 'linear-gradient(to right, transparent, rgba(201,169,110,0.7))' }} />
-            <span style={{ fontSize: '0.56rem', letterSpacing: '0.5em', color: '#c9a96e', fontWeight: 300, textTransform: 'uppercase' }}>Est. Bar &amp; Spirits</span>
+            <span style={{ fontSize: '0.56rem', letterSpacing: '0.5em', color: '#c9a96e', fontWeight: 300, textTransform: 'uppercase' }}>Pintxos · Raciones · Bocadillos</span>
             <div style={{ height: '1px', width: '3.5rem', background: 'linear-gradient(to left, transparent, rgba(201,169,110,0.7))' }} />
           </div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(3.25rem,12vw,5.5rem)', fontWeight: 300, letterSpacing: '0.3em', color: '#f7f0e6', textTransform: 'uppercase', lineHeight: 1, margin: '0 0 0.75rem' }}>
@@ -130,7 +128,7 @@ export default function MenuPage() {
           </h1>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.25rem' }}>
             <div style={{ height: '1px', width: '3.5rem', background: 'linear-gradient(to right, transparent, rgba(201,169,110,0.7))' }} />
-            <span style={{ fontSize: '0.56rem', letterSpacing: '0.4em', color: '#c9a96e', fontWeight: 300, textTransform: 'uppercase' }}>Donde el océano tiene voz</span>
+            <span style={{ fontSize: '0.56rem', letterSpacing: '0.4em', color: '#c9a96e', fontWeight: 300, textTransform: 'uppercase' }}>Barren Plaza 3</span>
             <div style={{ height: '1px', width: '3.5rem', background: 'linear-gradient(to left, transparent, rgba(201,169,110,0.7))' }} />
           </div>
           <div style={{ width: '1px', height: '2.5rem', background: 'linear-gradient(to bottom, transparent, rgba(201,169,110,0.6), transparent)', margin: '1.5rem auto 0' }} />
@@ -138,48 +136,41 @@ export default function MenuPage() {
 
         {loading && (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '5rem 0' }}>
-            <WhaleTail className="animate-breathe" style={{ width: '3rem', height: '3rem', opacity: 0.4 } as any} />
+            <WhaleTail className="animate-breathe" style={{ width: '3rem', height: '3rem', opacity: 0.4 }} />
           </div>
         )}
 
-        {!loading && items.length === 0 && (
+        {!loading && dishes.length === 0 && (
           <p style={{ textAlign: 'center', color: 'rgba(168,212,224,0.3)', fontSize: '0.7rem', letterSpacing: '0.3em', textTransform: 'uppercase', fontWeight: 300, padding: '4rem 0' }}>
             El menú se está preparando
           </p>
         )}
 
         {categories.map((cat, i) => {
-          const catItems = items.filter(it => it.category_id === cat.id)
-          if (!catItems.length) return null
+          const catDishes = dishes.filter(d => d.category_id === cat.id)
+          if (!catDishes.length) return null
           return (
             <section key={cat.id} style={{ marginBottom: '4rem' }}>
-              {/* section header */}
               <div style={{ marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                   <span style={{ color: 'rgba(168,212,224,0.6)', fontSize: '1.1rem' }}>{ICONS[i % ICONS.length]}</span>
                   <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 400, fontStyle: 'italic', letterSpacing: '0.12em', color: '#dfc08f', textTransform: 'uppercase', margin: 0 }}>
-                    {cat.name}
+                    {cat.name_es}
                   </h2>
                   <div style={{ flex: 1, height: '1px', background: 'linear-gradient(to right, rgba(201,169,110,0.4), transparent)' }} />
                 </div>
-                {cat.description && (
-                  <p style={{ fontSize: '0.62rem', letterSpacing: '0.14em', color: 'rgba(168,212,224,0.4)', textTransform: 'uppercase', fontWeight: 300, marginLeft: '2.25rem' }}>
-                    {cat.description}
-                  </p>
-                )}
               </div>
-              {catItems.map(item => (
-                <MenuCard key={item.id} name={item.name} desc={item.description} price={item.price} featured={item.featured} />
+              {catDishes.map(dish => (
+                <DishCard key={dish.id} name={dish.name_es} desc={dish.description_es} price={dish.price} featured={dish.is_chef_pick} />
               ))}
             </section>
           )
         })}
 
-        {/* footer */}
         <footer style={{ textAlign: 'center', marginTop: '5rem', paddingTop: '2.5rem', borderTop: '1px solid rgba(168,212,224,0.1)' }}>
-          <WhaleTail style={{ width: '2rem', height: '2rem', margin: '0 auto 1rem', opacity: 0.3 } as any} />
+          <WhaleTail style={{ width: '2rem', height: '2rem', margin: '0 auto 1rem', opacity: 0.3 }} />
           <p style={{ fontSize: '0.56rem', letterSpacing: '0.3em', color: 'rgba(168,212,224,0.3)', textTransform: 'uppercase', fontWeight: 300, marginBottom: '0.4rem' }}>
-            Itsaski · Bar &amp; Spirits · Todos los precios incluyen IVA
+            Itsaski · Barren Plaza 3 · Todos los precios incluyen IVA
           </p>
           <p style={{ fontSize: '0.56rem', letterSpacing: '0.3em', color: 'rgba(168,212,224,0.2)', textTransform: 'uppercase', fontWeight: 300 }}>
             Infórmenos de sus alergias · Consumo responsable

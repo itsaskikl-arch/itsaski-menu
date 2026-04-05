@@ -191,7 +191,7 @@ export default function AdminPage() {
             if (!catItems.length) return null
             return (
               <div key={cat.id} style={{ marginBottom: '1.5rem' }}>
-                <p style={{ fontSize: '0.6rem', letterSpacing: '0.25em', color: '#c9a96e', textTransform: 'uppercase', marginBottom: '0.5rem', fontFamily: 'var(--font-display)', fontSize: '1rem', fontStyle: 'italic' }}>{cat.name}</p>
+                <p style={{ letterSpacing: '0.25em', color: '#c9a96e', textTransform: 'uppercase', marginBottom: '0.5rem', fontFamily: 'var(--font-display)', fontSize: '1rem', fontStyle: 'italic' }}>{cat.name}</p>
                 {catItems.map(item => (
                   <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 1rem', borderBottom: '1px solid rgba(168,212,224,0.06)' }}>
                     <span style={{ flex: 1, fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#e8f4f8' }}>{item.name}</span>
