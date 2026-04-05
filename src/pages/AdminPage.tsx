@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-interface Category { id: string; name: string; description?: string; display_order: number; visible: boolean }
-interface Item { id: string; category_id: string; name: string; description?: string; price?: number; is_available: boolean; featured: boolean; display_order: number }
+interface Category { id: string; name_es: string; description_es?: string; display_order: number; is_active: boolean }
+interface Dish { id: string; category_id: string; name_es: string; description_es?: string; price?: number; is_available: boolean; is_chef_pick: boolean; display_order: number }
 
 const btn = (color: string) => ({
   padding: '0.3rem 0.75rem', fontSize: '0.65rem', letterSpacing: '0.1em',
@@ -18,11 +18,25 @@ const input = {
 
 export default function AdminPage() {
   const [categories, setCategories] = useState<Category[]>([])
-  const [items, setItems] = useState<Item[]>([])
-  const [activeTab, setActiveTab] = useState<'categories' | 'items'>('categories')
+  const [dishes, setDishes] = useState<Dish[]>([])
+  const [activeTab, setActiveTab] = useState<'categories' | 'dishes'>('categories')
   const [showPwdForm, setShowPwdForm] = useState(false)
   const [pwd, setPwd] = useState({ new: '', confirm: '' })
   const [pwdMsg, setPwdMsg] = useState('')
+
+  const [newCat, setNewCat] = useState({ name_es: '', description_es: '', display_order: 0 })
+  const [newDish, setNewDish] = useState({ category_id: '', name_es: '', description_es: '', price: '', display_order: 0, is_chef_pick: false })
+
+  const reload = async () => {
+    const [{ data: cats }, { data: ds }] = await Promise.all([
+      supabase.from('categories').select('*').order('display_order'),
+      supabase.from('dishes').select('*').order('display_order'),
+    ])
+    setCategories((cats || []) as Category[])
+    setDishes((ds || []).map((d: any) => ({ ...d, price: d.price != null ? Number(d.price) : undefined })))
+  }
+
+  useEffect(() => { reload() }, [])
 
   const changePassword = async () => {
     if (pwd.new.length < 6) { setPwdMsg('Mínimo 6 caracteres'); return }
@@ -34,61 +48,45 @@ export default function AdminPage() {
     setTimeout(() => { setShowPwdForm(false); setPwdMsg('') }, 1500)
   }
 
-  // new category form
-  const [newCat, setNewCat] = useState({ name: '', description: '', display_order: 0 })
-  // new item form
-  const [newItem, setNewItem] = useState({ category_id: '', name: '', description: '', price: '', display_order: 0, featured: false })
-
-  const reload = async () => {
-    const [{ data: cats }, { data: its }] = await Promise.all([
-      supabase.from('menu_categories').select('*').order('display_order'),
-      supabase.from('menu_items').select('*').order('display_order'),
-    ])
-    setCategories((cats || []) as Category[])
-    setItems((its || []) as Item[])
-  }
-
-  useEffect(() => { reload() }, [])
-
   const addCategory = async () => {
-    if (!newCat.name.trim()) return
-    await supabase.from('menu_categories').insert({ ...newCat })
-    setNewCat({ name: '', description: '', display_order: 0 })
+    if (!newCat.name_es.trim()) return
+    await supabase.from('categories').insert({ name_es: newCat.name_es, description_es: newCat.description_es || null, display_order: newCat.display_order, is_active: true })
+    setNewCat({ name_es: '', description_es: '', display_order: 0 })
     reload()
   }
 
   const deleteCategory = async (id: string) => {
-    await supabase.from('menu_categories').delete().eq('id', id)
+    await supabase.from('categories').delete().eq('id', id)
     reload()
   }
 
-  const toggleCatVisible = async (cat: Category) => {
-    await supabase.from('menu_categories').update({ visible: !cat.visible }).eq('id', cat.id)
+  const toggleCatActive = async (cat: Category) => {
+    await supabase.from('categories').update({ is_active: !cat.is_active }).eq('id', cat.id)
     reload()
   }
 
-  const addItem = async () => {
-    if (!newItem.name.trim() || !newItem.category_id) return
-    await supabase.from('menu_items').insert({
-      category_id: newItem.category_id,
-      name: newItem.name,
-      description: newItem.description || null,
-      price: newItem.price ? parseFloat(newItem.price) : null,
-      display_order: newItem.display_order,
-      featured: newItem.featured,
+  const addDish = async () => {
+    if (!newDish.name_es.trim() || !newDish.category_id) return
+    await supabase.from('dishes').insert({
+      category_id: newDish.category_id,
+      name_es: newDish.name_es,
+      description_es: newDish.description_es || null,
+      price: newDish.price ? parseFloat(newDish.price) : null,
+      display_order: newDish.display_order,
+      is_chef_pick: newDish.is_chef_pick,
       is_available: true,
     })
-    setNewItem({ category_id: '', name: '', description: '', price: '', display_order: 0, featured: false })
+    setNewDish({ category_id: '', name_es: '', description_es: '', price: '', display_order: 0, is_chef_pick: false })
     reload()
   }
 
-  const deleteItem = async (id: string) => {
-    await supabase.from('menu_items').delete().eq('id', id)
+  const deleteDish = async (id: string) => {
+    await supabase.from('dishes').delete().eq('id', id)
     reload()
   }
 
-  const toggleItemAvailable = async (item: Item) => {
-    await supabase.from('menu_items').update({ is_available: !item.is_available }).eq('id', item.id)
+  const toggleDishAvailable = async (dish: Dish) => {
+    await supabase.from('dishes').update({ is_available: !dish.is_available }).eq('id', dish.id)
     reload()
   }
 
@@ -135,7 +133,7 @@ export default function AdminPage() {
 
       {/* tabs */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem' }}>
-        {(['categories', 'items'] as const).map(tab => (
+        {(['categories', 'dishes'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} style={{
             ...btn(activeTab === tab ? '#c9a96e' : 'rgba(201,169,110,0.3)'),
             background: activeTab === tab ? 'rgba(201,169,110,0.1)' : 'transparent',
@@ -148,17 +146,16 @@ export default function AdminPage() {
       {/* CATEGORIES */}
       {activeTab === 'categories' && (
         <div>
-          {/* add form */}
           <div style={{ background: 'rgba(10,24,40,0.8)', border: '1px solid rgba(201,169,110,0.15)', borderRadius: '4px', padding: '1.25rem', marginBottom: '1.5rem' }}>
             <p style={{ fontSize: '0.6rem', letterSpacing: '0.25em', color: '#c9a96e', textTransform: 'uppercase', marginBottom: '1rem' }}>Nueva sección</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '0.75rem', alignItems: 'end' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Nombre *</label>
-                <input style={input} value={newCat.name} onChange={e => setNewCat(p => ({ ...p, name: e.target.value }))} placeholder="Cócteles..." />
+                <input style={input} value={newCat.name_es} onChange={e => setNewCat(p => ({ ...p, name_es: e.target.value }))} placeholder="Cócteles..." />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Descripción</label>
-                <input style={input} value={newCat.description} onChange={e => setNewCat(p => ({ ...p, description: e.target.value }))} placeholder="Opcional..." />
+                <input style={input} value={newCat.description_es} onChange={e => setNewCat(p => ({ ...p, description_es: e.target.value }))} placeholder="Opcional..." />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Orden</label>
@@ -168,14 +165,13 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* list */}
           {categories.map(cat => (
             <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderBottom: '1px solid rgba(168,212,224,0.06)' }}>
-              <span style={{ flex: 1, fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: '#e8f4f8' }}>{cat.name}</span>
-              {cat.description && <span style={{ fontSize: '0.65rem', color: 'rgba(168,212,224,0.4)' }}>{cat.description}</span>}
+              <span style={{ flex: 1, fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: '#e8f4f8' }}>{cat.name_es}</span>
+              {cat.description_es && <span style={{ fontSize: '0.65rem', color: 'rgba(168,212,224,0.4)' }}>{cat.description_es}</span>}
               <span style={{ fontSize: '0.65rem', color: 'rgba(168,212,224,0.3)', width: '2rem', textAlign: 'center' }}>#{cat.display_order}</span>
-              <button onClick={() => toggleCatVisible(cat)} style={btn(cat.visible ? 'rgba(74,222,128,0.6)' : 'rgba(248,113,113,0.4)')}>
-                {cat.visible ? 'Visible' : 'Oculta'}
+              <button onClick={() => toggleCatActive(cat)} style={btn(cat.is_active ? 'rgba(74,222,128,0.6)' : 'rgba(248,113,113,0.4)')}>
+                {cat.is_active ? 'Visible' : 'Oculta'}
               </button>
               <button onClick={() => deleteCategory(cat.id)} style={btn('rgba(248,113,113,0.5)')}>×</button>
             </div>
@@ -184,63 +180,61 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ITEMS */}
-      {activeTab === 'items' && (
+      {/* DISHES */}
+      {activeTab === 'dishes' && (
         <div>
-          {/* add form */}
           <div style={{ background: 'rgba(10,24,40,0.8)', border: '1px solid rgba(201,169,110,0.15)', borderRadius: '4px', padding: '1.25rem', marginBottom: '1.5rem' }}>
             <p style={{ fontSize: '0.6rem', letterSpacing: '0.25em', color: '#c9a96e', textTransform: 'uppercase', marginBottom: '1rem' }}>Nuevo plato / bebida</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 1fr 0.6fr 0.5fr auto', gap: '0.75rem', alignItems: 'end' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Sección *</label>
-                <select style={{ ...input }} value={newItem.category_id} onChange={e => setNewItem(p => ({ ...p, category_id: e.target.value }))}>
+                <select style={input} value={newDish.category_id} onChange={e => setNewDish(p => ({ ...p, category_id: e.target.value }))}>
                   <option value="">Selecciona...</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name_es}</option>)}
                 </select>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Nombre *</label>
-                <input style={input} value={newItem.name} onChange={e => setNewItem(p => ({ ...p, name: e.target.value }))} placeholder="Mojito..." />
+                <input style={input} value={newDish.name_es} onChange={e => setNewDish(p => ({ ...p, name_es: e.target.value }))} placeholder="Mojito..." />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Descripción</label>
-                <input style={input} value={newItem.description} onChange={e => setNewItem(p => ({ ...p, description: e.target.value }))} placeholder="Ron, lima..." />
+                <input style={input} value={newDish.description_es} onChange={e => setNewDish(p => ({ ...p, description_es: e.target.value }))} placeholder="Ron, lima..." />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Precio €</label>
-                <input style={input} type="number" step="0.5" value={newItem.price} onChange={e => setNewItem(p => ({ ...p, price: e.target.value }))} placeholder="8" />
+                <input style={input} type="number" step="0.5" value={newDish.price} onChange={e => setNewDish(p => ({ ...p, price: e.target.value }))} placeholder="8" />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Firma</label>
-                <input type="checkbox" checked={newItem.featured} onChange={e => setNewItem(p => ({ ...p, featured: e.target.checked }))} style={{ width: '1rem', height: '1rem', accentColor: '#c9a96e' }} />
+                <input type="checkbox" checked={newDish.is_chef_pick} onChange={e => setNewDish(p => ({ ...p, is_chef_pick: e.target.checked }))} style={{ width: '1rem', height: '1rem', accentColor: '#c9a96e' }} />
               </div>
-              <button onClick={addItem} style={btn('#c9a96e')}>Añadir</button>
+              <button onClick={addDish} style={btn('#c9a96e')}>Añadir</button>
             </div>
           </div>
 
-          {/* list grouped by category */}
           {categories.map(cat => {
-            const catItems = items.filter(i => i.category_id === cat.id)
-            if (!catItems.length) return null
+            const catDishes = dishes.filter(d => d.category_id === cat.id)
+            if (!catDishes.length) return null
             return (
               <div key={cat.id} style={{ marginBottom: '1.5rem' }}>
-                <p style={{ letterSpacing: '0.25em', color: '#c9a96e', textTransform: 'uppercase', marginBottom: '0.5rem', fontFamily: 'var(--font-display)', fontSize: '1rem', fontStyle: 'italic' }}>{cat.name}</p>
-                {catItems.map(item => (
-                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 1rem', borderBottom: '1px solid rgba(168,212,224,0.06)' }}>
-                    <span style={{ flex: 1, fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#e8f4f8' }}>{item.name}</span>
-                    {item.description && <span style={{ fontSize: '0.65rem', color: 'rgba(168,212,224,0.4)' }}>{item.description}</span>}
-                    {item.price != null && <span style={{ color: '#c9a96e', fontSize: '0.85rem' }}>{item.price} €</span>}
-                    {item.featured && <span style={{ fontSize: '0.55rem', letterSpacing: '0.1em', border: '1px solid rgba(201,169,110,0.4)', color: '#c9a96e', padding: '0.1rem 0.4rem', borderRadius: '9999px', textTransform: 'uppercase' }}>firma</span>}
-                    <button onClick={() => toggleItemAvailable(item)} style={btn(item.is_available ? 'rgba(74,222,128,0.6)' : 'rgba(248,113,113,0.4)')}>
-                      {item.is_available ? 'Disponible' : 'No disp.'}
+                <p style={{ letterSpacing: '0.25em', color: '#c9a96e', textTransform: 'uppercase', marginBottom: '0.5rem', fontFamily: 'var(--font-display)', fontSize: '1rem', fontStyle: 'italic' }}>{cat.name_es}</p>
+                {catDishes.map(dish => (
+                  <div key={dish.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 1rem', borderBottom: '1px solid rgba(168,212,224,0.06)' }}>
+                    <span style={{ flex: 1, fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#e8f4f8' }}>{dish.name_es}</span>
+                    {dish.description_es && <span style={{ fontSize: '0.65rem', color: 'rgba(168,212,224,0.4)' }}>{dish.description_es}</span>}
+                    {dish.price != null && <span style={{ color: '#c9a96e', fontSize: '0.85rem' }}>{dish.price} €</span>}
+                    {dish.is_chef_pick && <span style={{ fontSize: '0.55rem', letterSpacing: '0.1em', border: '1px solid rgba(201,169,110,0.4)', color: '#c9a96e', padding: '0.1rem 0.4rem', borderRadius: '9999px', textTransform: 'uppercase' }}>firma</span>}
+                    <button onClick={() => toggleDishAvailable(dish)} style={btn(dish.is_available ? 'rgba(74,222,128,0.6)' : 'rgba(248,113,113,0.4)')}>
+                      {dish.is_available ? 'Disponible' : 'No disp.'}
                     </button>
-                    <button onClick={() => deleteItem(item.id)} style={btn('rgba(248,113,113,0.5)')}>×</button>
+                    <button onClick={() => deleteDish(dish.id)} style={btn('rgba(248,113,113,0.5)')}>×</button>
                   </div>
                 ))}
               </div>
             )
           })}
-          {items.length === 0 && <p style={{ color: 'rgba(168,212,224,0.3)', fontSize: '0.75rem', textAlign: 'center', padding: '2rem' }}>Sin platos aún</p>}
+          {dishes.length === 0 && <p style={{ color: 'rgba(168,212,224,0.3)', fontSize: '0.75rem', textAlign: 'center', padding: '2rem' }}>Sin platos aún</p>}
         </div>
       )}
     </div>
