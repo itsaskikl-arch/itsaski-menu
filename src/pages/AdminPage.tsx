@@ -20,6 +20,19 @@ export default function AdminPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [items, setItems] = useState<Item[]>([])
   const [activeTab, setActiveTab] = useState<'categories' | 'items'>('categories')
+  const [showPwdForm, setShowPwdForm] = useState(false)
+  const [pwd, setPwd] = useState({ new: '', confirm: '' })
+  const [pwdMsg, setPwdMsg] = useState('')
+
+  const changePassword = async () => {
+    if (pwd.new.length < 6) { setPwdMsg('Mínimo 6 caracteres'); return }
+    if (pwd.new !== pwd.confirm) { setPwdMsg('Las contraseñas no coinciden'); return }
+    const { error } = await supabase.auth.updateUser({ password: pwd.new })
+    if (error) { setPwdMsg(error.message); return }
+    setPwdMsg('Contraseña actualizada')
+    setPwd({ new: '', confirm: '' })
+    setTimeout(() => { setShowPwdForm(false); setPwdMsg('') }, 1500)
+  }
 
   // new category form
   const [newCat, setNewCat] = useState({ name: '', description: '', display_order: 0 })
@@ -96,9 +109,29 @@ export default function AdminPage() {
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <a href="/" target="_blank" style={{ ...btn('rgba(168,212,224,0.5)'), textDecoration: 'none' }}>Ver menú</a>
+          <button onClick={() => setShowPwdForm(v => !v)} style={btn('rgba(168,212,224,0.4)')}>Contraseña</button>
           <button onClick={logout} style={btn('rgba(248,113,113,0.5)')}>Salir</button>
         </div>
       </div>
+
+      {/* change password */}
+      {showPwdForm && (
+        <div style={{ background: 'rgba(10,24,40,0.9)', border: '1px solid rgba(201,169,110,0.2)', borderRadius: '4px', padding: '1.25rem', marginBottom: '1.5rem' }}>
+          <p style={{ fontSize: '0.6rem', letterSpacing: '0.25em', color: '#c9a96e', textTransform: 'uppercase', marginBottom: '1rem' }}>Cambiar contraseña</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.75rem', alignItems: 'end' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Nueva contraseña</label>
+              <input style={input} type="password" value={pwd.new} onChange={e => setPwd(p => ({ ...p, new: e.target.value }))} placeholder="Mínimo 6 caracteres" />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Confirmar</label>
+              <input style={input} type="password" value={pwd.confirm} onChange={e => setPwd(p => ({ ...p, confirm: e.target.value }))} placeholder="Repite la contraseña" />
+            </div>
+            <button onClick={changePassword} style={btn('#c9a96e')}>Guardar</button>
+          </div>
+          {pwdMsg && <p style={{ fontSize: '0.7rem', color: pwdMsg === 'Contraseña actualizada' ? 'rgba(74,222,128,0.8)' : 'rgba(248,113,113,0.8)', marginTop: '0.75rem' }}>{pwdMsg}</p>}
+        </div>
+      )}
 
       {/* tabs */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem' }}>
