@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 interface Category { id: string; name_es: string; description_es?: string; display_order: number; is_active: boolean }
@@ -14,6 +14,34 @@ const input = {
   border: '1px solid rgba(30,107,138,0.3)', borderRadius: '2px',
   color: '#e8f4f8', fontSize: '0.82rem', fontFamily: 'var(--font-body)',
   outline: 'none', width: '100%',
+}
+
+function useDragSort<T extends { id: string; display_order: number }>(
+  items: T[],
+  setItems: (items: T[]) => void,
+  onSave: (items: T[]) => void
+) {
+  const dragId = useRef<string | null>(null)
+  const dragOver = useRef<string | null>(null)
+
+  const onDragStart = (id: string) => { dragId.current = id }
+  const onDragEnter = (id: string) => { dragOver.current = id }
+
+  const onDrop = () => {
+    if (!dragId.current || dragId.current === dragOver.current) return
+    const sorted = [...items]
+    const fromIdx = sorted.findIndex(i => i.id === dragId.current)
+    const toIdx = sorted.findIndex(i => i.id === dragOver.current)
+    const [moved] = sorted.splice(fromIdx, 1)
+    sorted.splice(toIdx, 0, moved)
+    const reordered = sorted.map((item, idx) => ({ ...item, display_order: idx + 1 }))
+    setItems(reordered)
+    onSave(reordered)
+    dragId.current = null
+    dragOver.current = null
+  }
+
+  return { onDragStart, onDragEnter, onDrop }
 }
 
 export default function AdminPage() {
@@ -37,6 +65,17 @@ export default function AdminPage() {
   }
 
   useEffect(() => { reload() }, [])
+
+  const saveCatOrder = async (reordered: Category[]) => {
+    await Promise.all(reordered.map(c => supabase.from('categories').update({ display_order: c.display_order }).eq('id', c.id)))
+  }
+
+  const saveDishOrder = async (reordered: Dish[]) => {
+    await Promise.all(reordered.map(d => supabase.from('dishes').update({ display_order: d.display_order }).eq('id', d.id)))
+  }
+
+  const catDrag = useDragSort(categories, setCategories, saveCatOrder)
+  const dishDrag = useDragSort(dishes, setDishes, saveDishOrder)
 
   const changePassword = async () => {
     if (pwd.new.length < 6) { setPwdMsg('Mínimo 6 caracteres'); return }
@@ -95,6 +134,14 @@ export default function AdminPage() {
     window.location.href = '/'
   }
 
+  const dragRowStyle = (isDragTarget?: boolean): React.CSSProperties => ({
+    display: 'flex', alignItems: 'center', gap: '0.75rem',
+    padding: '0.75rem 1rem', borderBottom: '1px solid rgba(168,212,224,0.06)',
+    cursor: 'grab', userSelect: 'none',
+    background: isDragTarget ? 'rgba(30,107,138,0.1)' : 'transparent',
+    transition: 'background 0.15s',
+  })
+
   const s = { color: '#e8f4f8', fontFamily: 'var(--font-body)', minHeight: '100vh', background: '#071020', padding: '2rem 1.5rem' }
 
   return (
@@ -148,7 +195,7 @@ export default function AdminPage() {
         <div>
           <div style={{ background: 'rgba(10,24,40,0.8)', border: '1px solid rgba(201,169,110,0.15)', borderRadius: '4px', padding: '1.25rem', marginBottom: '1.5rem' }}>
             <p style={{ fontSize: '0.6rem', letterSpacing: '0.25em', color: '#c9a96e', textTransform: 'uppercase', marginBottom: '1rem' }}>Nueva sección</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '0.75rem', alignItems: 'end' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.75rem', alignItems: 'end' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Nombre *</label>
                 <input style={input} value={newCat.name_es} onChange={e => setNewCat(p => ({ ...p, name_es: e.target.value }))} placeholder="Cócteles..." />
@@ -157,19 +204,24 @@ export default function AdminPage() {
                 <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Descripción</label>
                 <input style={input} value={newCat.description_es} onChange={e => setNewCat(p => ({ ...p, description_es: e.target.value }))} placeholder="Opcional..." />
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Orden</label>
-                <input style={{ ...input, width: '4rem' }} type="number" value={newCat.display_order} onChange={e => setNewCat(p => ({ ...p, display_order: parseInt(e.target.value) || 0 }))} />
-              </div>
               <button onClick={addCategory} style={btn('#c9a96e')}>Añadir</button>
             </div>
           </div>
 
+          <p style={{ fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.3)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Arrastra para reordenar</p>
           {categories.map(cat => (
-            <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderBottom: '1px solid rgba(168,212,224,0.06)' }}>
+            <div
+              key={cat.id}
+              draggable
+              onDragStart={() => catDrag.onDragStart(cat.id)}
+              onDragEnter={() => catDrag.onDragEnter(cat.id)}
+              onDragOver={e => e.preventDefault()}
+              onDrop={catDrag.onDrop}
+              style={dragRowStyle()}
+            >
+              <span style={{ color: 'rgba(168,212,224,0.25)', fontSize: '0.8rem', marginRight: '0.25rem' }}>⠿</span>
               <span style={{ flex: 1, fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: '#e8f4f8' }}>{cat.name_es}</span>
               {cat.description_es && <span style={{ fontSize: '0.65rem', color: 'rgba(168,212,224,0.4)' }}>{cat.description_es}</span>}
-              <span style={{ fontSize: '0.65rem', color: 'rgba(168,212,224,0.3)', width: '2rem', textAlign: 'center' }}>#{cat.display_order}</span>
               <button onClick={() => toggleCatActive(cat)} style={btn(cat.is_active ? 'rgba(74,222,128,0.6)' : 'rgba(248,113,113,0.4)')}>
                 {cat.is_active ? 'Visible' : 'Oculta'}
               </button>
@@ -213,6 +265,7 @@ export default function AdminPage() {
             </div>
           </div>
 
+          <p style={{ fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.3)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Arrastra para reordenar</p>
           {categories.map(cat => {
             const catDishes = dishes.filter(d => d.category_id === cat.id)
             if (!catDishes.length) return null
@@ -220,7 +273,16 @@ export default function AdminPage() {
               <div key={cat.id} style={{ marginBottom: '1.5rem' }}>
                 <p style={{ letterSpacing: '0.25em', color: '#c9a96e', textTransform: 'uppercase', marginBottom: '0.5rem', fontFamily: 'var(--font-display)', fontSize: '1rem', fontStyle: 'italic' }}>{cat.name_es}</p>
                 {catDishes.map(dish => (
-                  <div key={dish.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 1rem', borderBottom: '1px solid rgba(168,212,224,0.06)' }}>
+                  <div
+                    key={dish.id}
+                    draggable
+                    onDragStart={() => dishDrag.onDragStart(dish.id)}
+                    onDragEnter={() => dishDrag.onDragEnter(dish.id)}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={dishDrag.onDrop}
+                    style={{ ...dragRowStyle(), padding: '0.6rem 1rem' }}
+                  >
+                    <span style={{ color: 'rgba(168,212,224,0.25)', fontSize: '0.8rem', marginRight: '0.25rem' }}>⠿</span>
                     <span style={{ flex: 1, fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#e8f4f8' }}>{dish.name_es}</span>
                     {dish.description_es && <span style={{ fontSize: '0.65rem', color: 'rgba(168,212,224,0.4)' }}>{dish.description_es}</span>}
                     {dish.price != null && <span style={{ color: '#c9a96e', fontSize: '0.85rem' }}>{dish.price} €</span>}
