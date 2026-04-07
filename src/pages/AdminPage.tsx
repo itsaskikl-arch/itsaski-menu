@@ -15,18 +15,17 @@ const input = {
   color: '#e8f4f8', fontSize: '0.82rem', fontFamily: 'var(--font-body)',
   outline: 'none', width: '100%',
 }
+const inlineInput: React.CSSProperties = {
+  ...input, padding: '0.25rem 0.4rem', fontSize: '0.8rem',
+}
 
 function useDragSort<T extends { id: string; display_order: number }>(
-  items: T[],
-  setItems: (items: T[]) => void,
-  onSave: (items: T[]) => void
+  items: T[], setItems: (items: T[]) => void, onSave: (items: T[]) => void
 ) {
   const dragId = useRef<string | null>(null)
   const dragOver = useRef<string | null>(null)
-
   const onDragStart = (id: string) => { dragId.current = id }
   const onDragEnter = (id: string) => { dragOver.current = id }
-
   const onDrop = () => {
     if (!dragId.current || dragId.current === dragOver.current) return
     const sorted = [...items]
@@ -37,10 +36,8 @@ function useDragSort<T extends { id: string; display_order: number }>(
     const reordered = sorted.map((item, idx) => ({ ...item, display_order: idx + 1 }))
     setItems(reordered)
     onSave(reordered)
-    dragId.current = null
-    dragOver.current = null
+    dragId.current = null; dragOver.current = null
   }
-
   return { onDragStart, onDragEnter, onDrop }
 }
 
@@ -51,9 +48,12 @@ export default function AdminPage() {
   const [showPwdForm, setShowPwdForm] = useState(false)
   const [pwd, setPwd] = useState({ new: '', confirm: '' })
   const [pwdMsg, setPwdMsg] = useState('')
-
-  const [newCat, setNewCat] = useState({ name_es: '', description_es: '', display_order: 0 })
-  const [newDish, setNewDish] = useState({ category_id: '', name_es: '', description_es: '', price: '', display_order: 0, is_chef_pick: false })
+  const [editingCat, setEditingCat] = useState<string | null>(null)
+  const [editingDish, setEditingDish] = useState<string | null>(null)
+  const [editCatData, setEditCatData] = useState<Partial<Category>>({})
+  const [editDishData, setEditDishData] = useState<Partial<Dish> & { price?: string }>({})
+  const [newCat, setNewCat] = useState({ name_es: '', description_es: '' })
+  const [newDish, setNewDish] = useState({ category_id: '', name_es: '', description_es: '', price: '', is_chef_pick: false })
 
   const reload = async () => {
     const [{ data: cats }, { data: ds }] = await Promise.all([
@@ -66,13 +66,10 @@ export default function AdminPage() {
 
   useEffect(() => { reload() }, [])
 
-  const saveCatOrder = async (reordered: Category[]) => {
-    await Promise.all(reordered.map(c => supabase.from('categories').update({ display_order: c.display_order }).eq('id', c.id)))
-  }
-
-  const saveDishOrder = async (reordered: Dish[]) => {
-    await Promise.all(reordered.map(d => supabase.from('dishes').update({ display_order: d.display_order }).eq('id', d.id)))
-  }
+  const saveCatOrder = async (reordered: Category[]) =>
+    Promise.all(reordered.map(c => supabase.from('categories').update({ display_order: c.display_order }).eq('id', c.id)))
+  const saveDishOrder = async (reordered: Dish[]) =>
+    Promise.all(reordered.map(d => supabase.from('dishes').update({ display_order: d.display_order }).eq('id', d.id)))
 
   const catDrag = useDragSort(categories, setCategories, saveCatOrder)
   const dishDrag = useDragSort(dishes, setDishes, saveDishOrder)
@@ -89,12 +86,22 @@ export default function AdminPage() {
 
   const addCategory = async () => {
     if (!newCat.name_es.trim()) return
-    await supabase.from('categories').insert({ name_es: newCat.name_es, description_es: newCat.description_es || null, display_order: newCat.display_order, is_active: true })
-    setNewCat({ name_es: '', description_es: '', display_order: 0 })
+    const maxOrder = categories.length ? Math.max(...categories.map(c => c.display_order)) : 0
+    await supabase.from('categories').insert({ name_es: newCat.name_es, description_es: newCat.description_es || null, display_order: maxOrder + 1, is_active: true })
+    setNewCat({ name_es: '', description_es: '' })
     reload()
   }
 
-  const deleteCategory = async (id: string) => {
+  const saveCat = async (id: string) => {
+    const d = editCatData
+    await supabase.from('categories').update({
+      name_es: d.name_es, description_es: d.description_es || null,
+    }).eq('id', id)
+    setEditingCat(null)
+    reload()
+  }
+
+  const deleteCat = async (id: string) => {
     await supabase.from('categories').delete().eq('id', id)
     reload()
   }
@@ -106,16 +113,26 @@ export default function AdminPage() {
 
   const addDish = async () => {
     if (!newDish.name_es.trim() || !newDish.category_id) return
+    const catDishes = dishes.filter(d => d.category_id === newDish.category_id)
+    const maxOrder = catDishes.length ? Math.max(...catDishes.map(d => d.display_order)) : 0
     await supabase.from('dishes').insert({
-      category_id: newDish.category_id,
-      name_es: newDish.name_es,
+      category_id: newDish.category_id, name_es: newDish.name_es,
       description_es: newDish.description_es || null,
       price: newDish.price ? parseFloat(newDish.price) : null,
-      display_order: newDish.display_order,
-      is_chef_pick: newDish.is_chef_pick,
-      is_available: true,
+      display_order: maxOrder + 1, is_chef_pick: newDish.is_chef_pick, is_available: true,
     })
-    setNewDish({ category_id: '', name_es: '', description_es: '', price: '', display_order: 0, is_chef_pick: false })
+    setNewDish({ category_id: '', name_es: '', description_es: '', price: '', is_chef_pick: false })
+    reload()
+  }
+
+  const saveDish = async (id: string) => {
+    const d = editDishData
+    await supabase.from('dishes').update({
+      name_es: d.name_es, description_es: d.description_es || null,
+      price: d.price ? parseFloat(d.price as string) : null,
+      category_id: d.category_id, is_chef_pick: d.is_chef_pick,
+    }).eq('id', id)
+    setEditingDish(null)
     reload()
   }
 
@@ -129,20 +146,10 @@ export default function AdminPage() {
     reload()
   }
 
-  const logout = async () => {
-    await supabase.auth.signOut()
-    window.location.href = '/'
-  }
-
-  const dragRowStyle = (isDragTarget?: boolean): React.CSSProperties => ({
-    display: 'flex', alignItems: 'center', gap: '0.75rem',
-    padding: '0.75rem 1rem', borderBottom: '1px solid rgba(168,212,224,0.06)',
-    cursor: 'grab', userSelect: 'none',
-    background: isDragTarget ? 'rgba(30,107,138,0.1)' : 'transparent',
-    transition: 'background 0.15s',
-  })
+  const logout = async () => { await supabase.auth.signOut(); window.location.href = '/' }
 
   const s = { color: '#e8f4f8', fontFamily: 'var(--font-body)', minHeight: '100vh', background: '#071020', padding: '2rem 1.5rem' }
+  const rowBase: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 1rem', borderBottom: '1px solid rgba(168,212,224,0.06)' }
 
   return (
     <div style={s}>
@@ -159,7 +166,6 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* change password */}
       {showPwdForm && (
         <div style={{ background: 'rgba(10,24,40,0.9)', border: '1px solid rgba(201,169,110,0.2)', borderRadius: '4px', padding: '1.25rem', marginBottom: '1.5rem' }}>
           <p style={{ fontSize: '0.6rem', letterSpacing: '0.25em', color: '#c9a96e', textTransform: 'uppercase', marginBottom: '1rem' }}>Cambiar contraseña</p>
@@ -198,7 +204,7 @@ export default function AdminPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.75rem', alignItems: 'end' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Nombre *</label>
-                <input style={input} value={newCat.name_es} onChange={e => setNewCat(p => ({ ...p, name_es: e.target.value }))} placeholder="Cócteles..." />
+                <input style={input} value={newCat.name_es} onChange={e => setNewCat(p => ({ ...p, name_es: e.target.value }))} placeholder="Cócteles..." onKeyDown={e => e.key === 'Enter' && addCategory()} />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Descripción</label>
@@ -209,23 +215,35 @@ export default function AdminPage() {
           </div>
 
           <p style={{ fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.3)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Arrastra para reordenar</p>
+
           {categories.map(cat => (
-            <div
-              key={cat.id}
-              draggable
+            <div key={cat.id}
+              draggable={editingCat !== cat.id}
               onDragStart={() => catDrag.onDragStart(cat.id)}
               onDragEnter={() => catDrag.onDragEnter(cat.id)}
               onDragOver={e => e.preventDefault()}
               onDrop={catDrag.onDrop}
-              style={dragRowStyle()}
+              style={{ ...rowBase, cursor: editingCat === cat.id ? 'default' : 'grab', background: editingCat === cat.id ? 'rgba(30,107,138,0.08)' : 'transparent' }}
             >
-              <span style={{ color: 'rgba(168,212,224,0.25)', fontSize: '0.8rem', marginRight: '0.25rem' }}>⠿</span>
-              <span style={{ flex: 1, fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: '#e8f4f8' }}>{cat.name_es}</span>
-              {cat.description_es && <span style={{ fontSize: '0.65rem', color: 'rgba(168,212,224,0.4)' }}>{cat.description_es}</span>}
-              <button onClick={() => toggleCatActive(cat)} style={btn(cat.is_active ? 'rgba(74,222,128,0.6)' : 'rgba(248,113,113,0.4)')}>
-                {cat.is_active ? 'Visible' : 'Oculta'}
-              </button>
-              <button onClick={() => deleteCategory(cat.id)} style={btn('rgba(248,113,113,0.5)')}>×</button>
+              {editingCat === cat.id ? (
+                <>
+                  <input style={{ ...inlineInput, flex: 1 }} value={editCatData.name_es ?? ''} onChange={e => setEditCatData(p => ({ ...p, name_es: e.target.value }))} autoFocus />
+                  <input style={{ ...inlineInput, flex: 1.5 }} value={editCatData.description_es ?? ''} onChange={e => setEditCatData(p => ({ ...p, description_es: e.target.value }))} placeholder="Descripción..." />
+                  <button onClick={() => saveCat(cat.id)} style={btn('rgba(74,222,128,0.7)')}>Guardar</button>
+                  <button onClick={() => setEditingCat(null)} style={btn('rgba(168,212,224,0.3)')}>Cancelar</button>
+                </>
+              ) : (
+                <>
+                  <span style={{ color: 'rgba(168,212,224,0.25)', fontSize: '0.8rem' }}>⠿</span>
+                  <span style={{ flex: 1, fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: '#e8f4f8' }}>{cat.name_es}</span>
+                  {cat.description_es && <span style={{ fontSize: '0.65rem', color: 'rgba(168,212,224,0.4)' }}>{cat.description_es}</span>}
+                  <button onClick={() => { setEditingCat(cat.id); setEditCatData({ name_es: cat.name_es, description_es: cat.description_es ?? '' }) }} style={btn('rgba(201,169,110,0.5)')}>Editar</button>
+                  <button onClick={() => toggleCatActive(cat)} style={btn(cat.is_active ? 'rgba(74,222,128,0.6)' : 'rgba(248,113,113,0.4)')}>
+                    {cat.is_active ? 'Visible' : 'Oculta'}
+                  </button>
+                  <button onClick={() => deleteCat(cat.id)} style={btn('rgba(248,113,113,0.5)')}>×</button>
+                </>
+              )}
             </div>
           ))}
           {categories.length === 0 && <p style={{ color: 'rgba(168,212,224,0.3)', fontSize: '0.75rem', textAlign: 'center', padding: '2rem' }}>Sin secciones aún</p>}
@@ -237,7 +255,7 @@ export default function AdminPage() {
         <div>
           <div style={{ background: 'rgba(10,24,40,0.8)', border: '1px solid rgba(201,169,110,0.15)', borderRadius: '4px', padding: '1.25rem', marginBottom: '1.5rem' }}>
             <p style={{ fontSize: '0.6rem', letterSpacing: '0.25em', color: '#c9a96e', textTransform: 'uppercase', marginBottom: '1rem' }}>Nuevo plato / bebida</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 1fr 0.6fr 0.5fr auto', gap: '0.75rem', alignItems: 'end' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.5fr 1.2fr 0.6fr 0.5fr auto', gap: '0.75rem', alignItems: 'end' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Sección *</label>
                 <select style={input} value={newDish.category_id} onChange={e => setNewDish(p => ({ ...p, category_id: e.target.value }))}>
@@ -266,6 +284,7 @@ export default function AdminPage() {
           </div>
 
           <p style={{ fontSize: '0.58rem', letterSpacing: '0.15em', color: 'rgba(168,212,224,0.3)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Arrastra para reordenar</p>
+
           {categories.map(cat => {
             const catDishes = dishes.filter(d => d.category_id === cat.id)
             if (!catDishes.length) return null
@@ -273,24 +292,43 @@ export default function AdminPage() {
               <div key={cat.id} style={{ marginBottom: '1.5rem' }}>
                 <p style={{ letterSpacing: '0.25em', color: '#c9a96e', textTransform: 'uppercase', marginBottom: '0.5rem', fontFamily: 'var(--font-display)', fontSize: '1rem', fontStyle: 'italic' }}>{cat.name_es}</p>
                 {catDishes.map(dish => (
-                  <div
-                    key={dish.id}
-                    draggable
+                  <div key={dish.id}
+                    draggable={editingDish !== dish.id}
                     onDragStart={() => dishDrag.onDragStart(dish.id)}
                     onDragEnter={() => dishDrag.onDragEnter(dish.id)}
                     onDragOver={e => e.preventDefault()}
                     onDrop={dishDrag.onDrop}
-                    style={{ ...dragRowStyle(), padding: '0.6rem 1rem' }}
+                    style={{ ...rowBase, cursor: editingDish === dish.id ? 'default' : 'grab', background: editingDish === dish.id ? 'rgba(30,107,138,0.08)' : 'transparent' }}
                   >
-                    <span style={{ color: 'rgba(168,212,224,0.25)', fontSize: '0.8rem', marginRight: '0.25rem' }}>⠿</span>
-                    <span style={{ flex: 1, fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#e8f4f8' }}>{dish.name_es}</span>
-                    {dish.description_es && <span style={{ fontSize: '0.65rem', color: 'rgba(168,212,224,0.4)' }}>{dish.description_es}</span>}
-                    {dish.price != null && <span style={{ color: '#c9a96e', fontSize: '0.85rem' }}>{dish.price} €</span>}
-                    {dish.is_chef_pick && <span style={{ fontSize: '0.55rem', letterSpacing: '0.1em', border: '1px solid rgba(201,169,110,0.4)', color: '#c9a96e', padding: '0.1rem 0.4rem', borderRadius: '9999px', textTransform: 'uppercase' }}>firma</span>}
-                    <button onClick={() => toggleDishAvailable(dish)} style={btn(dish.is_available ? 'rgba(74,222,128,0.6)' : 'rgba(248,113,113,0.4)')}>
-                      {dish.is_available ? 'Disponible' : 'No disp.'}
-                    </button>
-                    <button onClick={() => deleteDish(dish.id)} style={btn('rgba(248,113,113,0.5)')}>×</button>
+                    {editingDish === dish.id ? (
+                      <>
+                        <select style={{ ...inlineInput, width: '8rem', flexShrink: 0 }} value={editDishData.category_id ?? dish.category_id} onChange={e => setEditDishData(p => ({ ...p, category_id: e.target.value }))}>
+                          {categories.map(c => <option key={c.id} value={c.id}>{c.name_es}</option>)}
+                        </select>
+                        <input style={{ ...inlineInput, flex: 1 }} value={editDishData.name_es ?? ''} onChange={e => setEditDishData(p => ({ ...p, name_es: e.target.value }))} autoFocus placeholder="Nombre" />
+                        <input style={{ ...inlineInput, flex: 1.5 }} value={editDishData.description_es ?? ''} onChange={e => setEditDishData(p => ({ ...p, description_es: e.target.value }))} placeholder="Descripción" />
+                        <input style={{ ...inlineInput, width: '5rem', flexShrink: 0 }} type="number" step="0.5" value={editDishData.price ?? ''} onChange={e => setEditDishData(p => ({ ...p, price: e.target.value }))} placeholder="€" />
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.6rem', color: 'rgba(168,212,224,0.5)', whiteSpace: 'nowrap' }}>
+                          <input type="checkbox" checked={!!editDishData.is_chef_pick} onChange={e => setEditDishData(p => ({ ...p, is_chef_pick: e.target.checked }))} style={{ accentColor: '#c9a96e' }} />
+                          Firma
+                        </label>
+                        <button onClick={() => saveDish(dish.id)} style={btn('rgba(74,222,128,0.7)')}>Guardar</button>
+                        <button onClick={() => setEditingDish(null)} style={btn('rgba(168,212,224,0.3)')}>Cancelar</button>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ color: 'rgba(168,212,224,0.25)', fontSize: '0.8rem' }}>⠿</span>
+                        <span style={{ flex: 1, fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#e8f4f8' }}>{dish.name_es}</span>
+                        {dish.description_es && <span style={{ fontSize: '0.65rem', color: 'rgba(168,212,224,0.4)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dish.description_es}</span>}
+                        {dish.price != null && <span style={{ color: '#c9a96e', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{dish.price} €</span>}
+                        {dish.is_chef_pick && <span style={{ fontSize: '0.55rem', letterSpacing: '0.1em', border: '1px solid rgba(201,169,110,0.4)', color: '#c9a96e', padding: '0.1rem 0.4rem', borderRadius: '9999px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>firma</span>}
+                        <button onClick={() => { setEditingDish(dish.id); setEditDishData({ name_es: dish.name_es, description_es: dish.description_es ?? '', price: dish.price?.toString() ?? '', category_id: dish.category_id, is_chef_pick: dish.is_chef_pick }) }} style={btn('rgba(201,169,110,0.5)')}>Editar</button>
+                        <button onClick={() => toggleDishAvailable(dish)} style={btn(dish.is_available ? 'rgba(74,222,128,0.6)' : 'rgba(248,113,113,0.4)')}>
+                          {dish.is_available ? 'Disponible' : 'No disp.'}
+                        </button>
+                        <button onClick={() => deleteDish(dish.id)} style={btn('rgba(248,113,113,0.5)')}>×</button>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
