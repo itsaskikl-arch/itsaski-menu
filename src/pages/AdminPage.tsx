@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 
 interface Category { id: string; name_es: string; description_es?: string; display_order: number; is_active: boolean }
 interface Dish { id: string; category_id: string; name_es: string; description_es?: string; price?: number; is_available: boolean; is_chef_pick: boolean; display_order: number }
+interface DishEdit { name_es?: string; description_es?: string; price?: string; category_id?: string; is_chef_pick?: boolean }
 
 const btn = (color: string) => ({
   padding: '0.3rem 0.75rem', fontSize: '0.65rem', letterSpacing: '0.1em',
@@ -51,7 +52,7 @@ export default function AdminPage() {
   const [editingCat, setEditingCat] = useState<string | null>(null)
   const [editingDish, setEditingDish] = useState<string | null>(null)
   const [editCatData, setEditCatData] = useState<Partial<Category>>({})
-  const [editDishData, setEditDishData] = useState<Partial<Dish> & { price?: string }>({})
+  const [editDishData, setEditDishData] = useState<DishEdit>({})
   const [newCat, setNewCat] = useState({ name_es: '', description_es: '' })
   const [newDish, setNewDish] = useState({ category_id: '', name_es: '', description_es: '', price: '', is_chef_pick: false })
 
