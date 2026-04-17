@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { generatePrintHTML } from '../lib/printMenu'
 
-interface Category { id: string; name_es: string; description_es?: string; display_order: number; is_active: boolean }
+interface Category { id: string; name_es: string; description_es?: string; display_order: number; is_active: boolean; two_col?: boolean }
 interface Dish { id: string; category_id: string; name_es: string; description_es?: string; price?: number; is_available: boolean; is_chef_pick: boolean; display_order: number; note?: string; allergens?: string[] }
 interface DishEdit { name_es?: string; description_es?: string; price?: string; category_id?: string; is_chef_pick?: boolean; note?: string; allergens?: string[] }
 
@@ -171,6 +172,28 @@ export default function AdminPage() {
 
   const deleteDish = async (id: string) => { await supabase.from('dishes').delete().eq('id', id); reload() }
   const toggleDishAvailable = async (dish: Dish) => { await supabase.from('dishes').update({ is_available: !dish.is_available }).eq('id', dish.id); reload() }
+  const toggleTwoCol = async (cat: Category) => {
+    await supabase.from('categories').update({ two_col: !cat.two_col }).eq('id', cat.id)
+    reload()
+  }
+
+  const openPrint = () => {
+    const html = generatePrintHTML(categories, dishes, phone)
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(html)
+    win.document.close()
+  }
+
+  const downloadPrint = () => {
+    const html = generatePrintHTML(categories, dishes, phone)
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'itsaski-menu.html'; a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 2000)
+  }
+
   const logout = async () => { await supabase.auth.signOut(); window.location.href = '/' }
 
   const s: React.CSSProperties = { color: '#e8f4f8', fontFamily: 'var(--font-body)', minHeight: '100vh', background: '#071020', padding: '2rem 1.5rem' }
@@ -187,6 +210,8 @@ export default function AdminPage() {
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <a href="/" target="_blank" style={{ ...btn('rgba(168,212,224,0.5)'), textDecoration: 'none' }}>Ver menú</a>
+          <button onClick={openPrint} style={btn('rgba(201,169,110,0.6)')}>🖨 Abrir</button>
+          <button onClick={downloadPrint} style={btn('rgba(201,169,110,0.4)')}>↓ HTML</button>
           <button onClick={() => setShowPwdForm(v => !v)} style={btn('rgba(168,212,224,0.4)')}>Contraseña</button>
           <button onClick={logout} style={btn('rgba(248,113,113,0.5)')}>Salir</button>
         </div>
@@ -248,6 +273,7 @@ export default function AdminPage() {
                   {cat.description_es && <span style={{ fontSize: '0.65rem', color: 'rgba(168,212,224,0.4)' }}>{cat.description_es}</span>}
                   <button onClick={() => { setEditingCat(cat.id); setEditCatData({ name_es: cat.name_es, description_es: cat.description_es ?? '' }) }} style={btn('rgba(201,169,110,0.5)')}>Editar</button>
                   <button onClick={() => toggleCatActive(cat)} style={btn(cat.is_active ? 'rgba(74,222,128,0.6)' : 'rgba(248,113,113,0.4)')}>{cat.is_active ? 'Visible' : 'Oculta'}</button>
+                  <button onClick={() => toggleTwoCol(cat)} title="Columnas en impresión" style={btn(cat.two_col ? 'rgba(168,212,224,0.7)' : 'rgba(168,212,224,0.25)')}>{cat.two_col ? '2 col' : '1 col'}</button>
                   <button onClick={() => deleteCat(cat.id)} style={btn('rgba(248,113,113,0.5)')}>×</button>
                 </>
               )}
