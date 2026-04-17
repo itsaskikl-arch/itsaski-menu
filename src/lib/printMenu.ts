@@ -107,7 +107,6 @@ function renderPage(
     <div class="footer-text">Itsaski &middot; Barren Plaza 3 &middot; Todos los precios incluyen IVA</div>
     ${phone ? `<div class="footer-phone">&#9990; ${phone}</div>` : ''}
     <div class="footer-text">Infórmenos de sus alergias &middot; Consumo responsable</div>
-    ${showQuote ? '<div class="footer-quote">Cada trago, una ola. Cada bocado, una orilla.</div>' : ''}
   </footer>
 </div>`
 }
@@ -123,7 +122,7 @@ export function generatePrintHTML(
   const caraB = activeCats.slice(half)
 
   const pageA = renderPage(caraA, dishes, 'Barren Plaza 3', phone, false)
-  const pageB = renderPage(caraB, dishes, 'Pintxos · Raciones · Bocadillos', phone, true)
+  const pageB = renderPage(caraB, dishes, 'Pintxos · Raciones · Bocadillos', phone, false)
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -227,10 +226,6 @@ body { background:#d6d6d6; font-family:'Josefin Sans',sans-serif; color:var(--in
   text-transform:uppercase; line-height:1.7;
 }
 .footer-phone { font-size:5.5pt; color:var(--gold); letter-spacing:0.12em; margin:0.8mm 0; }
-.footer-quote {
-  font-family:'Cormorant Garamond',serif; font-style:italic;
-  font-size:7.5pt; color:var(--muted); margin-top:2mm; letter-spacing:0.03em;
-}
 </style>
 </head>
 <body>
