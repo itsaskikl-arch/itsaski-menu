@@ -91,7 +91,6 @@ function renderPage(
   dishes: PrintDish[],
   subtitle: string,
   phone: string,
-  showQuote: boolean
 ): string {
   const content = cats.map(c => renderCategory(c, dishes)).join('')
   return `<div class="page">
@@ -121,8 +120,8 @@ export function generatePrintHTML(
   const caraA = activeCats.slice(0, half)
   const caraB = activeCats.slice(half)
 
-  const pageA = renderPage(caraA, dishes, 'Barren Plaza 3', phone, false)
-  const pageB = renderPage(caraB, dishes, 'Pintxos · Raciones · Bocadillos', phone, false)
+  const pageA = renderPage(caraA, dishes, 'Barren Plaza 3', phone)
+  const pageB = renderPage(caraB, dishes, 'Pintxos · Raciones · Bocadillos', phone)
 
   return `<!DOCTYPE html>
 <html lang="es">
