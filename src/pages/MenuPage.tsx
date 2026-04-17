@@ -2,7 +2,19 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 interface Category { id: string; name_es: string; display_order: number }
-interface Dish { id: string; category_id: string; name_es: string; description_es?: string; price?: number; is_chef_pick: boolean; display_order: number }
+interface Dish { id: string; category_id: string; name_es: string; description_es?: string; price?: number; is_chef_pick: boolean; display_order: number; note?: string; allergens?: string[] }
+
+const ALLERGENS: Record<string, string> = {
+  gluten: 'G', crustaceos: 'CR', huevos: 'H', pescado: 'P', cacahuetes: 'CA',
+  soja: 'SO', leche: 'L', frutos_secos: 'FS', apio: 'AP', mostaza: 'MO',
+  sesamo: 'SE', sulfitos: 'SU', altramuces: 'AL', moluscos: 'ML',
+}
+const ALLERGEN_LABELS: Record<string, string> = {
+  gluten: 'Gluten', crustaceos: 'Crustáceos', huevos: 'Huevos', pescado: 'Pescado',
+  cacahuetes: 'Cacahuetes', soja: 'Soja', leche: 'Leche', frutos_secos: 'Frutos secos',
+  apio: 'Apio', mostaza: 'Mostaza', sesamo: 'Sésamo', sulfitos: 'Sulfitos',
+  altramuces: 'Altramuces', moluscos: 'Moluscos',
+}
 
 const WhaleTail = ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
   <svg className={className} style={style} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
@@ -34,11 +46,26 @@ function Price({ value }: { value?: number }) {
   return <span style={{ fontFamily: 'var(--font-display)', color: '#c9a96e', fontSize: '1.1rem', fontWeight: 300, letterSpacing: '0.05em' }}>{str}</span>
 }
 
-function DishCard({ name, desc, price, featured }: { name: string; desc?: string; price?: number; featured?: boolean }) {
+function AllergenBadges({ allergens }: { allergens?: string[] }) {
+  if (!allergens || allergens.length === 0) return null
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.35rem' }}>
+      {allergens.map(id => ALLERGENS[id] ? (
+        <span key={id} title={ALLERGEN_LABELS[id]} style={{
+          fontSize: '0.48rem', letterSpacing: '0.08em', padding: '0.1rem 0.35rem',
+          border: '1px solid rgba(168,212,224,0.2)', color: 'rgba(168,212,224,0.45)',
+          borderRadius: '2px', textTransform: 'uppercase', fontFamily: 'var(--font-body)',
+        }}>{ALLERGENS[id]}</span>
+      ) : null)}
+    </div>
+  )
+}
+
+function DishCard({ name, desc, price, featured, note, allergens }: { name: string; desc?: string; price?: number; featured?: boolean; note?: string; allergens?: string[] }) {
   if (featured) {
     return (
       <div style={{
-        display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'baseline', gap: '1rem',
+        display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: '1rem',
         padding: '1rem', marginBottom: '0.5rem',
         background: 'linear-gradient(135deg,rgba(201,169,110,0.06),rgba(30,107,138,0.06))',
         border: '1px solid rgba(201,169,110,0.15)', borderRadius: '2px'
@@ -49,6 +76,8 @@ function DishCard({ name, desc, price, featured }: { name: string; desc?: string
             <span style={{ fontSize: '0.5rem', letterSpacing: '0.2em', padding: '0.15rem 0.5rem', border: '1px solid #c9a96e', color: '#c9a96e', borderRadius: '9999px', marginLeft: '0.5rem', verticalAlign: 'middle', opacity: 0.8, textTransform: 'uppercase' }}>firma</span>
           </span>
           {desc && <span style={{ fontSize: '0.62rem', letterSpacing: '0.12em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', fontWeight: 300 }}>{desc}</span>}
+          {note && <span style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.1em', color: 'rgba(201,169,110,0.6)', fontStyle: 'italic', marginTop: '0.25rem' }}>{note}</span>}
+          <AllergenBadges allergens={allergens} />
         </div>
         <Price value={price} />
       </div>
@@ -56,12 +85,14 @@ function DishCard({ name, desc, price, featured }: { name: string; desc?: string
   }
   return (
     <div style={{
-      display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'baseline', gap: '1rem',
-      padding: '0.9rem 0', borderBottom: '1px solid rgba(168,212,224,0.06)', cursor: 'default'
+      display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: '1rem',
+      padding: '0.9rem 0', borderBottom: '1px solid rgba(168,212,224,0.06)'
     }}>
       <div>
         <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.18rem', color: '#e8f4f8', display: 'block', marginBottom: '0.15rem' }}>{name}</span>
         {desc && <span style={{ fontSize: '0.62rem', letterSpacing: '0.12em', color: 'rgba(168,212,224,0.5)', textTransform: 'uppercase', fontWeight: 300 }}>{desc}</span>}
+        {note && <span style={{ display: 'block', fontSize: '0.58rem', letterSpacing: '0.1em', color: 'rgba(201,169,110,0.6)', fontStyle: 'italic', marginTop: '0.2rem' }}>{note}</span>}
+        <AllergenBadges allergens={allergens} />
       </div>
       <Price value={price} />
     </div>
@@ -74,6 +105,7 @@ export default function MenuPage() {
   const particlesRef = useRef<HTMLDivElement>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [dishes, setDishes] = useState<Dish[]>([])
+  const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -93,10 +125,13 @@ export default function MenuPage() {
   useEffect(() => {
     Promise.all([
       supabase.from('categories').select('id,name_es,display_order').eq('is_active', true).order('display_order'),
-      supabase.from('dishes').select('id,category_id,name_es,description_es,price,is_chef_pick,display_order').eq('is_available', true).order('display_order'),
-    ]).then(([{ data: cats }, { data: ds }]) => {
+      supabase.from('dishes').select('id,category_id,name_es,description_es,price,is_chef_pick,display_order,note,allergens').eq('is_available', true).order('display_order'),
+      supabase.from('settings').select('key,value'),
+    ]).then(([{ data: cats }, { data: ds }, { data: sets }]) => {
       setCategories((cats || []) as Category[])
       setDishes((ds || []).map((d: any) => ({ ...d, price: d.price != null ? Number(d.price) : undefined })))
+      const ph = (sets || []).find((s: any) => s.key === 'phone')?.value
+      if (ph) setPhone(ph)
       setLoading(false)
     })
   }, [])
@@ -161,7 +196,7 @@ export default function MenuPage() {
                 </div>
               </div>
               {catDishes.map(dish => (
-                <DishCard key={dish.id} name={dish.name_es} desc={dish.description_es} price={dish.price} featured={dish.is_chef_pick} />
+                <DishCard key={dish.id} name={dish.name_es} desc={dish.description_es} price={dish.price} featured={dish.is_chef_pick} note={dish.note} allergens={dish.allergens} />
               ))}
             </section>
           )
@@ -172,6 +207,11 @@ export default function MenuPage() {
           <p style={{ fontSize: '0.56rem', letterSpacing: '0.3em', color: 'rgba(168,212,224,0.3)', textTransform: 'uppercase', fontWeight: 300, marginBottom: '0.4rem' }}>
             Itsaski · Barren Plaza 3 · Todos los precios incluyen IVA
           </p>
+          {phone && (
+            <p style={{ fontSize: '0.65rem', letterSpacing: '0.2em', color: 'rgba(201,169,110,0.5)', fontWeight: 300, marginBottom: '0.4rem' }}>
+              ☎ {phone}
+            </p>
+          )}
           <p style={{ fontSize: '0.56rem', letterSpacing: '0.3em', color: 'rgba(168,212,224,0.2)', textTransform: 'uppercase', fontWeight: 300 }}>
             Infórmenos de sus alergias · Consumo responsable
           </p>
