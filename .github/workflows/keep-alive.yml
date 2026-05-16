@@ -13,6 +13,7 @@ jobs:
       - name: Ping Supabase REST API
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --retry 4 --retry-delay 10 --max-time 30 \
             "https://iuwueggmxtfhvfdjnekv.supabase.co/rest/v1/categories?select=id&limit=1" \
             -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1d3VlZ2dteHRmaHZmZGpuZWt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5NzI1NzksImV4cCI6MjA4ODU0ODU3OX0.kywrgdmgTnTzs-Uy8aqkPC8QWTKMW4lZ1n2GsPL-imo" \
             -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1d3VlZ2dteHRmaHZmZGpuZWt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5NzI1NzksImV4cCI6MjA4ODU0ODU3OX0.kywrgdmgTnTzs-Uy8aqkPC8QWTKMW4lZ1n2GsPL-imo")
